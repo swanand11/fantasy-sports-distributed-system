@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: player-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: player-consumer
+  template:
+    metadata:
+      labels:
+        app: player-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: fantasysportsacr.azurecr.io/fantasy-consumers:latest
+          command: ["python", "consumers/player_consumer.py"]
+          env:
+            - name: MONGO_URI
+              value: "{{ mongo_connection_uri }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eval-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eval-engine
+  template:
+    metadata:
+      labels:
+        app: eval-engine
+    spec:
+      containers:
+        - name: consumer
+          image: fantasysportsacr.azurecr.io/fantasy-consumers:latest
+          command: ["python", "consumers/evalengine.py"]
+          env:
+            - name: MONGO_URI
+              value: "{{ mongo_connection_uri }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leaderboard-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leaderboard-consumer
+  template:
+    metadata:
+      labels:
+        app: leaderboard-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: fantasysportsacr.azurecr.io/fantasy-consumers:latest
+          command: ["python", "consumers/leaderboard_consumer.py"]
+          env:
+            - name: MONGO_URI
+              value: "{{ mongo_connection_uri }}"
+            - name: REDIS_HOST
+              value: "{{ redis_host_url }}"

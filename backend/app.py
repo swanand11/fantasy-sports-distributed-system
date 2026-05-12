@@ -28,4 +28,4 @@ app.add_url_rule("/players",view_func=get_all_players,methods=["GET"])
 app.add_url_rule("/matches",view_func=get_all_matches,methods=["GET"])     
 if __name__=="__main__":
      a=get_connection()  
-     app.run(debug=True)
+     app.run(host="0.0.0.0", port=5000, debug=True)

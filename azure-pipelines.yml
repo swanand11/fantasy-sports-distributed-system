@@ -1,0 +1,161 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  # Registry configurations
+  dockerRegistryServiceConnection: 'azure-container-registry-svc'
+  containerRegistry: 'fantasysportsacr.azurecr.io'
+  tag: '$(Build.BuildId)'
+
+stages:
+- stage: CI
+  displayName: Continuous Integration
+  jobs:
+  - job: AnalyzeAndBuild
+    displayName: SonarQube Analysis & Docker Build
+    steps:
+    
+    # ==========================================
+    # 1. Static Code Analysis (SonarQube)
+    # ==========================================
+    - task: SonarQubePrepare@5
+      displayName: 'Prepare SonarQube Analysis'
+      inputs:
+        SonarQube: 'SonarQubeServiceConnection'
+        scannerMode: 'CLI'
+        configMode: 'file'
+        configFile: 'sonar-project.properties'
+
+    - task: SonarQubeAnalyze@5
+      displayName: 'Run SonarQube Analysis'
+
+    - task: SonarQubePublish@5
+      displayName: 'Publish Quality Gate Result'
+      inputs:
+        pollingTimeoutSec: '300'
+
+    # ==========================================
+    # 2. Containerization (Docker Build & Push)
+    # ==========================================
+    - task: Docker@2
+      displayName: 'Build and Push Backend'
+      inputs:
+        command: buildAndPush
+        repository: 'fantasy-backend'
+        dockerfile: 'backend/Dockerfile'
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+    - task: Docker@2
+      displayName: 'Build and Push Frontend'
+      inputs:
+        command: buildAndPush
+        repository: 'fantasy-frontend'
+        dockerfile: 'frontend/Dockerfile'
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+    - task: Docker@2
+      displayName: 'Build and Push Consumers'
+      inputs:
+        command: buildAndPush
+        repository: 'fantasy-consumers'
+        dockerfile: 'consumers/Dockerfile'
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+    - task: Docker@2
+      displayName: 'Build and Push Producer'
+      inputs:
+        command: buildAndPush
+        repository: 'fantasy-producer'
+        dockerfile: 'producer/Dockerfile'
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+- stage: Test
+  displayName: Automated Testing
+  dependsOn: CI
+  jobs:
+  - job: APISecurityTesting
+    displayName: API & Security Tests
+    steps:
+    
+    # Simulate spinning up the environment for testing
+    - script: |
+        echo "Starting testing environment..."
+        docker-compose up -d
+        sleep 10
+      displayName: 'Start Infrastructure Services'
+
+    # ==========================================
+    # 3. Automated API Testing (Newman)
+    # ==========================================
+    - script: |
+        npm install -g newman
+        newman run postman_collection.json
+      displayName: 'Run API Tests with Newman'
+
+    # ==========================================
+    # 4. Security Penetration Testing (OWASP ZAP)
+    # ==========================================
+    - script: |
+        docker run --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://127.0.0.1:5001 -r zap_report.html || true
+      displayName: 'Run OWASP ZAP Baseline Scan'
+      
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: 'zap_report.html'
+        artifact: 'ZAP_Report'
+      displayName: 'Publish ZAP Security Report'
+
+- stage: Deploy
+  displayName: Continuous Deployment (AKS)
+  dependsOn: Test
+  condition: succeeded()
+  jobs:
+  - job: DeployToAKS
+    displayName: Deploy to Kubernetes
+    steps:
+    - task: KubernetesManifest@1
+      displayName: 'Deploy Infrastructure Services'
+      inputs:
+        action: 'deploy'
+        connectionType: 'kubernetesServiceConnection'
+        kubernetesServiceConnection: 'aks-service-connection'
+        manifests: 'kubernetes/infrastructure.yaml'
+
+    - task: KubernetesManifest@1
+      displayName: 'Deploy Backend and Frontend'
+      inputs:
+        action: 'deploy'
+        connectionType: 'kubernetesServiceConnection'
+        kubernetesServiceConnection: 'aks-service-connection'
+        manifests: 'kubernetes/apps.yaml'
+
+    - task: KubernetesManifest@1
+      displayName: 'Deploy Kafka Consumers'
+      inputs:
+        action: 'deploy'
+        connectionType: 'kubernetesServiceConnection'
+        kubernetesServiceConnection: 'aks-service-connection'
+        manifests: 'kubernetes/consumers.yaml'
+
+    - task: KubernetesManifest@1
+      displayName: 'Deploy Prometheus and Splunk Monitoring'
+      inputs:
+        action: 'deploy'
+        connectionType: 'kubernetesServiceConnection'
+        kubernetesServiceConnection: 'aks-service-connection'
+        manifests: 'kubernetes/monitoring.yaml'

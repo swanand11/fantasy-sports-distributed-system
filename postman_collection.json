@@ -1,0 +1,72 @@
+{
+	"info": {
+		"name": "Fantasy Sports API Tests",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Get Matches",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5001/matches",
+					"protocol": "http",
+					"host": ["127", "0", "0", "1"],
+					"port": "5001",
+					"path": ["matches"]
+				}
+			},
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+                            "pm.test(\"Matches array is present\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.matches).to.be.an('array');",
+                            "});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			]
+		},
+		{
+			"name": "Get Leaderboard",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5001/leaderboard?match_id=M1",
+					"protocol": "http",
+					"host": ["127", "0", "0", "1"],
+					"port": "5001",
+					"path": ["leaderboard"],
+					"query": [
+						{
+							"key": "match_id",
+							"value": "M1"
+						}
+					]
+				}
+			},
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			]
+		}
+	]
+}

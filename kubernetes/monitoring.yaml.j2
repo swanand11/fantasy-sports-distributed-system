@@ -1,0 +1,74 @@
+# ==========================================
+# PROMETHEUS FOR INFRASTRUCTURE MONITORING
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  labels:
+    app: prometheus
+spec:
+  ports:
+    - port: 9090
+      targetPort: 9090
+  selector:
+    app: prometheus
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          ports:
+            - containerPort: 9090
+
+# ==========================================
+# SPLUNK FORWARDER FOR LOG MONITORING
+# ==========================================
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: splunk-forwarder
+  labels:
+    app: splunk-forwarder
+spec:
+  selector:
+    matchLabels:
+      app: splunk-forwarder
+  template:
+    metadata:
+      labels:
+        app: splunk-forwarder
+    spec:
+      containers:
+      - name: splunk-uf
+        image: splunk/universalforwarder:latest
+        env:
+        - name: SPLUNK_START_ARGS
+          value: "--accept-license"
+        - name: SPLUNK_PASSWORD
+          value: "{{ splunk_admin_password }}"
+        - name: SPLUNK_STANDALONE_URL
+          value: "splunk-enterprise:9997"
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log/containers
+          readOnly: true
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log/containers

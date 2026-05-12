@@ -1,0 +1,64 @@
+---
+- name: Configure Azure DevOps Host / Build Agent
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-pip
+          - unzip
+        state: present
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Install Azure CLI
+      shell: curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+      args:
+        creates: /usr/bin/az
+
+- name: Template Kubernetes Manifests with Vault Secrets
+  hosts: localhost
+  connection: local
+  vars_files:
+    - secrets.yml
+  tasks:
+    - name: Generate apps.yaml
+      template:
+        src: ../kubernetes/apps.yaml.j2
+        dest: ../kubernetes/apps.yaml
+
+    - name: Generate consumers.yaml
+      template:
+        src: ../kubernetes/consumers.yaml.j2
+        dest: ../kubernetes/consumers.yaml
+
+    - name: Generate monitoring.yaml
+      template:
+        src: ../kubernetes/monitoring.yaml.j2
+        dest: ../kubernetes/monitoring.yaml
